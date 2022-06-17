@@ -1,20 +1,57 @@
 #include <mpi.h>
 #include <iostream>
+#include <vector>
+#include <fstream>
+#include <sstream>
+
+using namespace std;
+
+void execute_command(const string &command) {
+
+}
+
+vector<string> read_commands(const string &path) {
+    ifstream file_stream(path);
+    string command;
+    vector<string> commands;
+
+    while (getline(file_stream, command)) {
+        commands.push_back(command);
+    }
+
+    return commands;
+}
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
 
-    // Get the number of processes
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    int total_rank; // #n
+    MPI_Comm_size(MPI_COMM_WORLD, &total_rank);
 
-    // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int current_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &current_rank);
 
-    std::cout << "World Size: " << world_size << "   Rank: " << world_rank << std::endl;
+    switch (current_rank) {
+        case 0: // rank 0
+            if (argc < 2) {
+                string command;
+                while (true) {
+                    cin >> command;
+                    if (command == "exit")
+                        break;
+                    execute_command(command);
+                }
+            } else {
+                auto commands = read_commands(argv[1]);
+                for (const string &command: commands) {
+                    execute_command(command);
+                }
+            }
+            break;
+        default:
+            break;
+    }
 
-    // Finalize the MPI environment.
     MPI_Finalize();
 
     return 0;
