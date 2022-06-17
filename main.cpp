@@ -2,12 +2,11 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
-#include <sstream>
 
 using namespace std;
 
 void execute_command(const string &command) {
-
+    cout << command << endl;
 }
 
 vector<string> read_commands(const string &path) {
@@ -35,8 +34,7 @@ int main(int argc, char **argv) {
         case 0: // rank 0
             if (argc < 2) {
                 string command;
-                while (true) {
-                    cin >> command;
+                while (getline(cin, command)) {
                     if (command == "exit")
                         break;
                     execute_command(command);
