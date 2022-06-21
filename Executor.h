@@ -1,5 +1,5 @@
 //
-// Created by arik on 21/06/2022.
+// Created by Writwick Das on 21/06/2022.
 //
 
 #ifndef MPI_TEST_EXECUTOR_H
