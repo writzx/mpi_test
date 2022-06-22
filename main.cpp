@@ -25,9 +25,15 @@ int main(int argc, char **argv) {
         cout << "Error: total number of rows not specified." << endl;
         return 0;
     }
+
+    if (argc < 3) {
+        cout << "Error: total number of cols not specified." << endl;
+        return 0;
+    }
+
     MPI_Init(&argc, &argv);
 
-    int total_rank;
+    int total_rank; // #n
     MPI_Comm_size(MPI_COMM_WORLD, &total_rank);
 
     int current_rank;
@@ -43,10 +49,24 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    Executor exec(bigN, total_rank);
+    // try to parse N from command line
+    stringstream bigM_str(argv[2]);
+    int bigM(0);
+    bigM_str >> bigM;
 
+    if (bigM_str.fail()) {
+        cout << "Error: invalid value for M." << endl;
+        return 0;
+    }
+
+    // calculate N1
+    int N1 = bigN / total_rank;
+
+    Executor exec(bigN, bigM, N1, total_rank);
+
+    // only allow running commands if rank is 0
     if (current_rank == 0) {
-        if (argc < 3) {
+        if (argc < 4) {
             string command;
             while (getline(cin, command)) {
                 if (command == "exit")
@@ -54,12 +74,15 @@ int main(int argc, char **argv) {
                 exec.execute_command(command);
             }
         } else {
-            auto commands = read_commands(argv[2]);
+            auto commands = read_commands(argv[3]);
             for (const string &command: commands) {
                 exec.execute_command(command);
             }
         }
     }
+
+    // allocate array N1 x M;
+    vector<vector<int>> array_part(exec.N1, vector<int>(exec.M, current_rank));
 
     MPI_Finalize();
 

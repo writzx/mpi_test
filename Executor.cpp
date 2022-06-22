@@ -9,9 +9,8 @@
 
 using namespace std;
 
-void Executor::get_func(Executor * executor, string sub_op, int row) {
-    int rows_per_rank = executor->total_rows / executor->total_ranks;
-    int rank = row / rows_per_rank;
+void Executor::get_func(Executor *executor, string sub_op, int row) {
+    int rank = row / executor->N1;
 
     cout << "Rank: " << rank << endl;
 }
