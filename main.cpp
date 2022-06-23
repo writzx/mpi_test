@@ -9,13 +9,13 @@
 
 using namespace std;
 
+Executor *executor;
+
 vector<string> read_commands(const string &path);
 
 void mpi_loop(int rank);
 
-void send_command(string command);
-
-Executor *executor;
+void execute_remote_command(const string &command, int N1);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -30,8 +30,11 @@ int main(int argc, char **argv) {
 
     MPI_Init(&argc, &argv);
 
-    int total_rank; // #n
+    int total_rank;
     MPI_Comm_size(MPI_COMM_WORLD, &total_rank);
+
+    // exclude rank 0
+    int n = total_rank - 1;
 
     int current_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &current_rank);
@@ -57,9 +60,9 @@ int main(int argc, char **argv) {
     }
 
     // calculate N1
-    int N1 = bigN / total_rank;
+    int N1 = bigN / n;
 
-    *executor = Executor(bigN, bigM, N1, total_rank);
+    executor = new Executor(current_rank, bigN, bigM, N1, n);
 
     // allocate array N1 x M;
     vector<vector<int>> array_part(executor->N1, vector<int>(executor->M, current_rank));
@@ -72,15 +75,22 @@ int main(int argc, char **argv) {
             string command;
             do {
                 getline(cin, command);
-                send_command(command);
+                execute_remote_command(command, N1);
             } while (command != "exit");
         } else {
             auto commands = read_commands(argv[3]);
+            bool exited = false;
             for (const string &command: commands) {
-                send_command(command);
-                if (command == "exit") {
+                execute_remote_command(command, N1);
+                if (command.substr(0, 4) == "exit") {
+                    exited = true;
                     break;
                 }
+            }
+
+            if (!exited) {
+                // if exit was not called, call it once
+                execute_remote_command("exit", N1);
             }
         }
     }
@@ -92,14 +102,54 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void send_command(string command) {
-    int target_rank = executor->parse_target_row(command) / executor->N1;
+void execute_remote_command(int rank, const string &command) {
+    MPI_Send(command.c_str(), command.length(), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
+
+    int result_len;
+    string result;
+    MPI_Status status;
+
+    MPI_Probe(rank, 0, MPI_COMM_WORLD, &status);
+    MPI_Get_count(&status, MPI_CHAR, &result_len);
+
+    result.resize(result_len);
+
+    MPI_Recv(&result[0], result_len, MPI_CHAR, rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    cout << result << endl;
+}
+
+void execute_remote_command(const string &command, int N1) {
+    int target_row = Executor::parse_target_row(command);
+    int target_rank = 1 + (target_row / N1);
+
+    if (target_row == -1) {
+        for (int i = 0; i < executor->rank_count; ++i) {
+            execute_remote_command(i + 1, command);
+        }
+    } else {
+        execute_remote_command(target_rank, command);
+    }
 }
 
 void mpi_loop(int rank) {
+    cout << "Loop started for rank: " << rank << endl;
     string command;
     do {
-    } while (command != "exit");
+        int command_len;
+        MPI_Status status;
+
+        MPI_Probe(0, 0, MPI_COMM_WORLD, &status);
+        MPI_Get_count(&status, MPI_CHAR, &command_len);
+
+        command.resize(command_len);
+
+        MPI_Recv(&command[0], command_len, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        auto result = executor->execute_command(command);
+
+        MPI_Send(result.c_str(), result.length(), MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+    } while (command.substr(0, 4) != "exit");
 }
 
 vector<string> read_commands(const string &path) {
