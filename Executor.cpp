@@ -9,7 +9,7 @@
 
 using namespace std;
 
-void Executor::get_func(Executor *executor, string sub_op, int row) {
+string Executor::get_func(Executor *executor, string sub_op, int row) {
     int rank = row / executor->N1;
 
     cout << "Rank: " << rank << endl;
@@ -55,4 +55,27 @@ void Executor::execute_command(const string &command) {
 
     // call the op_func to execute the command
     op_func(this, sub_op, row);
+}
+
+int Executor::parse_target_row(const string &command) {
+    istringstream string_stream(command);
+
+    string op, sub_op, row_str;
+
+    // split the command into op, sub op and row index strings
+    getline(string_stream, op, ' ');
+    getline(string_stream, sub_op, ' ');
+    getline(string_stream, row_str, ' ');
+
+    // try to parse the row value into integer
+    stringstream row_stream(row_str);
+    int row(-1);
+    row_stream >> row;
+
+    if (row_stream.fail()) {
+        cout << "Error: failed to parse row index." << endl;
+        return -1;
+    }
+
+    return row;
 }
