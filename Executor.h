@@ -19,10 +19,11 @@ private:
                                                          "get", {{"row", get_row},
                                                                  {"aggr", get_aggr}}
                                                  }};
+    // holds special functions with only command name (no arguments)
+    static map<string, string (*)(Executor *)> special_op_map;
+
+    // holds the allocated array
     vector<vector<int>> array_part;
-    map<string, string (*)(Executor *)> special_op_map{
-            {"exit", exit}
-    };
 
     static string exit(Executor *executor);
 
@@ -39,7 +40,7 @@ public:
 
     string execute_command(const string &command);
 
-    static int parse_target_row(const string &command);
+    static int parse_command(const string &command);
 
     int get_local_row(int row) const;
 
@@ -54,6 +55,5 @@ public:
     }
 
 };
-
 
 #endif //MPI_TEST_EXECUTOR_H
