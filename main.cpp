@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <future>
+#include <cmath>
 
 #include "Executor.h"
 
@@ -15,16 +16,16 @@ vector<string> read_commands(const string &path);
 
 void mpi_loop(int rank);
 
-void execute_remote_command(const string &command, int N1);
+void execute_remote_command(const string &command, int N1, int rank_count);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        cout << "Error: total number of rows not specified." << endl;
+        cout << "error: total number of rows not specified." << endl;
         return 0;
     }
 
     if (argc < 3) {
-        cout << "Error: total number of cols not specified." << endl;
+        cout << "error: total number of cols not specified." << endl;
         return 0;
     }
 
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
     bigN_str >> bigN;
 
     if (bigN_str.fail()) {
-        cout << "Error: invalid value for N." << endl;
+        cout << "error: invalid value for N." << endl;
         return 0;
     }
 
@@ -55,17 +56,12 @@ int main(int argc, char **argv) {
     bigM_str >> bigM;
 
     if (bigM_str.fail()) {
-        cout << "Error: invalid value for M." << endl;
+        cout << "error: invalid value for M." << endl;
         return 0;
     }
 
-    // calculate N1
-    int N1 = bigN / n;
-
-    executor = new Executor(current_rank, bigN, bigM, N1, n);
-
-    // allocate array N1 x M;
-    vector<vector<int>> array_part(executor->N1, vector<int>(executor->M, current_rank));
+    // calculate N1 (average rows per rank)
+    int N1 = ceil((float) bigN / n);
 
     // only allow running commands if rank is 0
     if (current_rank == 0) {
@@ -73,13 +69,13 @@ int main(int argc, char **argv) {
             string command;
             do {
                 getline(cin, command);
-                execute_remote_command(command, N1);
+                execute_remote_command(command, N1, n);
             } while (command != "exit");
         } else {
             auto commands = read_commands(argv[3]);
             bool exited = false;
             for (const string &command: commands) {
-                execute_remote_command(command, N1);
+                execute_remote_command(command, N1, n);
                 if (command.substr(0, 4) == "exit") {
                     exited = true;
                     break;
@@ -88,14 +84,20 @@ int main(int argc, char **argv) {
 
             if (!exited) {
                 // if exit was not called, call it once
-                execute_remote_command("exit", N1);
+                execute_remote_command("exit", N1, n);
             }
         }
     } else {
+        // allocate only remaining rows if it's the last rank
+        if (current_rank == n) {
+            N1 = bigN - (n - 1) * N1;
+        }
+
+        executor = new Executor(current_rank, bigN, bigM, N1, n);
+
         auto task = async(mpi_loop, current_rank);
         task.wait();
     }
-
 
     MPI_Finalize();
 
@@ -103,6 +105,7 @@ int main(int argc, char **argv) {
 }
 
 void execute_remote_command(int rank, const string &command) {
+    cout << "rank " << rank << " << " << command << endl;
     MPI_Send(command.c_str(), command.length(), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
 
     int result_len;
@@ -114,22 +117,31 @@ void execute_remote_command(int rank, const string &command) {
 
     result.resize(result_len);
 
-    MPI_Recv(&result[0], result_len, MPI_CHAR, rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&result[0], result_len, MPI_CHAR, rank, 0,
+             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    cout << result << endl;
+    cout << "rank " << rank << " >> " << result << endl;
 }
 
-void execute_remote_command(const string &command, int N1) {
+void execute_remote_command(const string &command, int N1, int rank_count) {
     int target_row = Executor::parse_target_row(command);
     int target_rank = 1 + (target_row / N1);
 
     if (target_row == -1) {
-        for (int i = 0; i < executor->rank_count; ++i) {
+        for (int i = 0; i < rank_count; ++i) {
             execute_remote_command(i + 1, command);
         }
-    } else {
-        execute_remote_command(target_rank, command);
+        return;
     }
+
+    if (target_rank > rank_count) {
+        cout << "invalid row input: " << target_row << " (inferred rank: " << target_rank
+             << " is invalid. valid row value range: [0, "
+             << N1 * rank_count - 1 << "])" << endl;
+        return;
+    }
+
+    execute_remote_command(target_rank, command);
 }
 
 void mpi_loop(int rank) {
@@ -143,7 +155,8 @@ void mpi_loop(int rank) {
 
         command.resize(command_len);
 
-        MPI_Recv(&command[0], command_len, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&command[0], command_len, MPI_CHAR, 0, 0,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         auto result = executor->execute_command(command);
 

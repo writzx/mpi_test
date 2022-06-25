@@ -27,7 +27,7 @@ string Executor::execute_command(const string &command) {
     getline(string_stream, row_str, ' ');
 
     if (op.substr(0, 4) == "exit") {
-        res_str << "exited: " << this->rank;
+        res_str << "exited";
         return res_str.str();
     }
 
