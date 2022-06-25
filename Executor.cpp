@@ -78,7 +78,6 @@ int Executor::parse_target_row(const string &command) {
     row_stream >> row;
 
     if (row_stream.fail()) {
-        cout << "Error: failed to parse row index." << endl;
         return -1;
     }
 

@@ -67,8 +67,6 @@ int main(int argc, char **argv) {
     // allocate array N1 x M;
     vector<vector<int>> array_part(executor->N1, vector<int>(executor->M, current_rank));
 
-    auto task = async(mpi_loop, current_rank);
-
     // only allow running commands if rank is 0
     if (current_rank == 0) {
         if (argc < 4) {
@@ -93,9 +91,11 @@ int main(int argc, char **argv) {
                 execute_remote_command("exit", N1);
             }
         }
+    } else {
+        auto task = async(mpi_loop, current_rank);
+        task.wait();
     }
 
-    task.wait();
 
     MPI_Finalize();
 
@@ -133,7 +133,6 @@ void execute_remote_command(const string &command, int N1) {
 }
 
 void mpi_loop(int rank) {
-    cout << "Loop started for rank: " << rank << endl;
     string command;
     do {
         int command_len;
