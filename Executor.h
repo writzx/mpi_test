@@ -14,7 +14,7 @@ using namespace std;
 class Executor {
 private:
     // holds the operators, functions and sub operators
-    map<string, pair<string (*)(Executor *, string, int), vector<string>>> op_map;
+    map<string, map<string, string (*)(Executor *, int)>> op_map;
     vector<vector<int>> array_part;
 public:
     int rank;
@@ -23,16 +23,21 @@ public:
     int N1;
     int rank_count;
 
-    static string get_func(Executor *executor, string sub_op, int row);
+    static string get_row(Executor *executor, int row);
+
+    static string get_aggr(Executor *executor, int row);
 
     string execute_command(const string &command);
 
     static int parse_target_row(const string &command);
 
     Executor(int current_rank, int rowN, int colM, int partRowN, int rankCount) :
-            op_map{
-                    {"get", {get_func, {"row", "aggr"}}}
-            },
+            op_map{{
+                           "get", {
+                            {"row", get_row},
+                            {"aggr", get_aggr}
+                    }
+                   }},
             rank(current_rank),
             rank_count(rankCount),
             N(rowN),

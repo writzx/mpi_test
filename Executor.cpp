@@ -9,10 +9,14 @@
 
 using namespace std;
 
-string Executor::get_func(Executor *executor, string sub_op, int row) {
+string Executor::get_row(Executor *executor, int row) {
     int rank = row / executor->N1;
 
-    return "some value";
+    return "some row value";
+}
+
+string Executor::get_aggr(Executor *executor, int row) {
+    return "some aggr value";
 }
 
 string Executor::execute_command(const string &command) {
@@ -39,15 +43,16 @@ string Executor::execute_command(const string &command) {
         return res_str.str();
     }
 
-    const auto op_func = op_element->second.first;
-    const auto allowed_sub_ops = op_element->second.second;
+    const auto sub_op_map = op_element->second;
 
-    // try to find sub operator in allowed sub operators list
-    if (find(allowed_sub_ops.begin(), allowed_sub_ops.end(), sub_op) == allowed_sub_ops.end()) {
+    auto sub_op_element = sub_op_map.find(sub_op);
+    if (sub_op_element == sub_op_map.end()) {
         // sub-operator is not valid for operator
         res_str << "error: sub operator \"" << sub_op << "\" is invalid for operator \"" << op << "\".";
         return res_str.str();
     }
+
+    const auto op_func = sub_op_element->second;
 
     // try to parse the row value into integer
     stringstream row_stream(row_str);
@@ -59,7 +64,7 @@ string Executor::execute_command(const string &command) {
     }
 
     // call the op_func to execute the command
-    return op_func(this, sub_op, row);
+    return op_func(this, row);
 }
 
 int Executor::parse_target_row(const string &command) {
