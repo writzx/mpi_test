@@ -4,19 +4,60 @@
 
 #include <sstream>
 #include <algorithm>
+#include <cmath>
 
 #include "Executor.h"
 
 using namespace std;
 
-string Executor::get_row(Executor *executor, int row) {
-    int rank = row / executor->N1;
+int Executor::get_local_row(int row) const {
+    int global_N1 = ceil((float) this->N / this->rank_count);
+    int local_row = row - (this->rank - 1) * global_N1;
 
-    return "some row value";
+    if (local_row < 0 || local_row > this->N1) {
+        return -1;
+    }
+
+    return local_row;
+}
+
+string Executor::get_row(Executor *executor, int row) {
+    stringstream res_str;
+
+    int local_row = executor->get_local_row(row);
+    if (local_row < 0) {
+        return "error: invalid row value (out of range).";
+    }
+
+    res_str << "row " << row << " (" << executor->rank << ":" << local_row << "): ";
+
+    string sep = "{ ";
+    for (const auto &r: executor->array_part[local_row]) {
+        res_str << sep << r;
+        sep = ", ";
+    }
+
+    res_str << " }";
+
+    return res_str.str();
 }
 
 string Executor::get_aggr(Executor *executor, int row) {
-    return "some aggr value";
+    stringstream res_str;
+
+    int local_row = executor->get_local_row(row);
+    if (local_row < 0) {
+        return "error: invalid row value (out of range).";
+    }
+
+    int aggr = 0;
+    for (const auto &r: executor->array_part[local_row]) {
+        aggr += r;
+    }
+
+    res_str << "aggr " << row << " (" << executor->rank << ":" << local_row << "): " << aggr;
+
+    return res_str.str();
 }
 
 string Executor::execute_command(const string &command) {
@@ -30,9 +71,11 @@ string Executor::execute_command(const string &command) {
     getline(string_stream, sub_op, ' ');
     getline(string_stream, row_str, ' ');
 
-    if (op.substr(0, 4) == "exit") {
-        res_str << "exited";
-        return res_str.str();
+    // try to find operator in special operator map keys
+    auto sp_op_element = special_op_map.find(op);
+    if (sp_op_element != special_op_map.end()) {
+        // it's a valid special operator so return its result directly
+        return sp_op_element->second(this);
     }
 
     // try to find operator in operator map keys
@@ -83,8 +126,15 @@ int Executor::parse_target_row(const string &command) {
     row_stream >> row;
 
     if (row_stream.fail()) {
-        return -1;
+        if (row_str.empty() && sub_op.empty()) {
+            return -1;
+        }
+        return -2;
     }
 
     return row;
+}
+
+string Executor::exit(Executor *executor) {
+    return "exited";
 }

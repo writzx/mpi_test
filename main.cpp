@@ -134,8 +134,13 @@ void execute_remote_command(const string &command, int N1, int rank_count) {
         return;
     }
 
+    if (target_row == -2) {
+        cout << "error: invalid command or arguments." << endl;
+        return;
+    }
+
     if (target_rank > rank_count) {
-        cout << "invalid row input: " << target_row << " (inferred rank: " << target_rank
+        cout << "error: invalid row input: " << target_row << " (inferred rank: " << target_rank
              << " is invalid. valid row value range: [0, "
              << N1 * rank_count - 1 << "])" << endl;
         return;

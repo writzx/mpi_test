@@ -14,8 +14,18 @@ using namespace std;
 class Executor {
 private:
     // holds the operators, functions and sub operators
-    map<string, map<string, string (*)(Executor *, int)>> op_map;
+    map<string, map<string,
+            string (*)(Executor *, int)>> op_map{{
+                                                         "get", {{"row", get_row},
+                                                                 {"aggr", get_aggr}}
+                                                 }};
     vector<vector<int>> array_part;
+    map<string, string (*)(Executor *)> special_op_map{
+            {"exit", exit}
+    };
+
+    static string exit(Executor *executor);
+
 public:
     int rank;
     int N;
@@ -31,13 +41,9 @@ public:
 
     static int parse_target_row(const string &command);
 
+    int get_local_row(int row) const;
+
     Executor(int current_rank, int rowN, int colM, int partRowN, int rankCount) :
-            op_map{{
-                           "get", {
-                            {"row", get_row},
-                            {"aggr", get_aggr}
-                    }
-                   }},
             rank(current_rank),
             rank_count(rankCount),
             N(rowN),
@@ -46,6 +52,7 @@ public:
             // allocate array N1 x M;
             array_part(partRowN, vector<int>(colM, current_rank)) {
     }
+
 };
 
 
