@@ -38,7 +38,7 @@ public:
 
     static string get_aggr(Executor *executor, int row);
 
-    string execute_command(const string &command);
+    string execute_command(string command);
 
     static int parse_command(const string &command);
 

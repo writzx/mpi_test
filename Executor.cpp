@@ -23,7 +23,11 @@ int Executor::get_local_row(int row) const {
 }
 
 // executes the command in local context and sends back the result
-string Executor::execute_command(const string &command) {
+string Executor::execute_command(string command) {
+    // convert command to lowercase first
+    transform(command.begin(), command.end(), command.begin(),
+              [](unsigned char c) { return tolower(c); });
+
     stringstream res_str;
     istringstream string_stream(command);
 
