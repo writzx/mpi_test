@@ -16,7 +16,7 @@ vector<string> read_commands(const string &path);
 
 void mpi_loop();
 
-void validate_and_execute(const string &command, int N1, int rank_count);
+void validate_and_execute(const string &command, int N, int N1, int rank_count);
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    // try to parse N from command line
+    // try to parse M from command line
     stringstream bigM_str(argv[2]);
     int bigM(0);
     bigM_str >> bigM;
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     int N1 = ceil((float) bigN / total_rank);
 
     // allocate only remaining rows if it's the last rank
-    if (current_rank == total_rank) {
+    if (current_rank == total_rank - 1) {
         N1 = bigN - (total_rank - 1) * N1;
     }
 
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
             do {
                 // read commands and execute them until "exit" is called
                 getline(cin, command);
-                validate_and_execute(command, N1, total_rank);
+                validate_and_execute(command, bigN, N1, total_rank);
             } while (command != "exit");
         } else {
             auto commands = read_commands(argv[3]);
@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 
             // read commands and execute until end of file or until we reach an "exit" call
             for (const string &command: commands) {
-                validate_and_execute(command, N1, total_rank);
+                validate_and_execute(command, bigN, N1, total_rank);
                 if (command.substr(0, 4) == "exit") {
                     exited = true;
                     break;
@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
 
             if (!exited) {
                 // if exit was not called, call it once
-                validate_and_execute("exit", N1, total_rank);
+                validate_and_execute("exit", bigN, N1, total_rank);
             }
         }
     }
@@ -162,7 +162,7 @@ void execute_remote_command(int rank, const string &command) {
 }
 
 // validates commands then executes them
-void validate_and_execute(const string &command, int N1, int rank_count) {
+void validate_and_execute(const string &command, int N, int N1, int rank_count) {
     int target_row = Executor::parse_command(command);
     int target_rank = (target_row / N1);
 
@@ -186,10 +186,10 @@ void validate_and_execute(const string &command, int N1, int rank_count) {
         return;
     }
 
-    if (target_rank > rank_count) {
+    if (target_rank >= rank_count || target_row >= N) {
         cout << "error: invalid row input: " << target_row << " (inferred rank: " << target_rank
              << " is invalid. valid row value range: [0, "
-             << N1 * rank_count - 1 << "])" << endl;
+             << N - 1 << "])" << endl;
         return;
     }
 
