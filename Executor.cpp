@@ -16,9 +16,9 @@ static vector<int> const_result;
 // find the local row index in array_part from global row index
 int Executor::get_local_row(int row) const {
     int global_N1 = ceil((float) this->N / this->rank_count);
-    int local_row = row - (this->rank - 1) * global_N1;
+    int local_row = row - this->rank * global_N1;
 
-    if (local_row < 0 || local_row > this->N1) {
+    if (local_row < 0 || local_row >= this->N1) {
         return -1;
     }
 
@@ -109,7 +109,7 @@ int Executor::parse_command(const string &command) {
 
     // try to parse the row value into integer
     stringstream row_stream(row_str);
-    int row(-1);
+    int row(-3);
     row_stream >> row;
 
     if (row_stream.fail()) {

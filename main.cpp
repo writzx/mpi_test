@@ -14,7 +14,7 @@ Executor *executor;
 
 vector<string> read_commands(const string &path);
 
-void mpi_loop(int rank);
+void mpi_loop();
 
 void validate_and_execute(const string &command, int N1, int rank_count);
 
@@ -29,13 +29,19 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    MPI_Init(&argc, &argv);
+    // try to register for multi-thread mpi
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
-    int total_rank;
+    if (provided != MPI_THREAD_MULTIPLE) {
+        // if failed to register for multi-threading, show an error message and quit
+        cout << "error: couldn't register mpi for multi-thread operations." << endl;
+        MPI_Finalize();
+        return 0;
+    }
+
+    int total_rank; // #n
     MPI_Comm_size(MPI_COMM_WORLD, &total_rank);
-
-    // exclude rank 0
-    int n = total_rank - 1;
 
     int current_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &current_rank);
@@ -61,7 +67,18 @@ int main(int argc, char **argv) {
     }
 
     // calculate N1 (average rows per rank)
-    int N1 = ceil((float) bigN / n);
+    int N1 = ceil((float) bigN / total_rank);
+
+    // allocate only remaining rows if it's the last rank
+    if (current_rank == total_rank) {
+        N1 = bigN - (total_rank - 1) * N1;
+    }
+
+    // initialize executor for all ranks including 0
+    executor = new Executor(current_rank, bigN, bigM, N1, total_rank);
+
+    // start the mpi loop asynchronously for all ranks including 0
+    auto task = async(mpi_loop);
 
     // only allow running commands if rank is 0
     if (current_rank == 0) {
@@ -70,7 +87,7 @@ int main(int argc, char **argv) {
             do {
                 // read commands and execute them until "exit" is called
                 getline(cin, command);
-                validate_and_execute(command, N1, n);
+                validate_and_execute(command, N1, total_rank);
             } while (command != "exit");
         } else {
             auto commands = read_commands(argv[3]);
@@ -78,7 +95,7 @@ int main(int argc, char **argv) {
 
             // read commands and execute until end of file or until we reach an "exit" call
             for (const string &command: commands) {
-                validate_and_execute(command, N1, n);
+                validate_and_execute(command, N1, total_rank);
                 if (command.substr(0, 4) == "exit") {
                     exited = true;
                     break;
@@ -87,21 +104,13 @@ int main(int argc, char **argv) {
 
             if (!exited) {
                 // if exit was not called, call it once
-                validate_and_execute("exit", N1, n);
+                validate_and_execute("exit", N1, total_rank);
             }
         }
-    } else {
-        // allocate only remaining rows if it's the last rank
-        if (current_rank == n) {
-            N1 = bigN - (n - 1) * N1;
-        }
-
-        // only initialize executor if the current rank is not 0
-        executor = new Executor(current_rank, bigN, bigM, N1, n);
-
-        auto task = async(mpi_loop, current_rank);
-        task.wait();
     }
+
+    // wait for mpi loop to exit
+    task.wait();
 
     MPI_Finalize();
 
@@ -155,7 +164,7 @@ void execute_remote_command(int rank, const string &command) {
 // validates commands then executes them
 void validate_and_execute(const string &command, int N1, int rank_count) {
     int target_row = Executor::parse_command(command);
-    int target_rank = 1 + (target_row / N1);
+    int target_rank = (target_row / N1);
 
     // operator is empty, ignore
     if (target_row == -1) {
@@ -166,7 +175,7 @@ void validate_and_execute(const string &command, int N1, int rank_count) {
     // it should be sent to all ranks
     if (target_row == -2) {
         for (int i = 0; i < rank_count; ++i) {
-            execute_remote_command(i + 1, command);
+            execute_remote_command(i, command);
         }
         return;
     }
@@ -188,7 +197,7 @@ void validate_and_execute(const string &command, int N1, int rank_count) {
 }
 
 // the basic mpi loop for receiving and executing commands then sending back results
-void mpi_loop(int rank) {
+void mpi_loop() {
     string command;
     do {
         int command_len;
