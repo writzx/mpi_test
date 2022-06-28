@@ -15,17 +15,17 @@ class Executor {
 private:
     // holds the operators, functions and sub operators
     map<string, map<string,
-            string (*)(Executor *, int)>> op_map{{
-                                                         "get", {{"row", get_row},
-                                                                 {"aggr", get_aggr}}
-                                                 }};
+            int *(*)(Executor *, int, int &)>> op_map{{
+                                                              "get", {{"row", get_row},
+                                                                      {"aggr", get_aggr}}
+                                                      }};
     // holds special functions with only command name (no arguments)
-    static map<string, string (*)(Executor *)> special_op_map;
+    static map<string, int *(*)(Executor *, int &)> special_op_map;
 
     // holds the allocated array
     vector<vector<int>> array_part;
 
-    static string exit(Executor *executor);
+    static int *exit(Executor *executor, int &);
 
 public:
     int rank;
@@ -34,11 +34,11 @@ public:
     int N1;
     int rank_count;
 
-    static string get_row(Executor *executor, int row);
+    static int *get_row(Executor *executor, int row, int &count);
 
-    static string get_aggr(Executor *executor, int row);
+    static int *get_aggr(Executor *executor, int row, int &count);
 
-    string execute_command(string command);
+    int *execute_command(string command, int &count);
 
     static int parse_command(const string &command);
 

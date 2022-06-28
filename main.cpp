@@ -115,19 +115,41 @@ void execute_remote_command(int rank, const string &command) {
     MPI_Send(command.c_str(), command.length(), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
 
     int result_len;
-    string result;
     MPI_Status status;
 
     // receive the result length then receive the result value and print it
     MPI_Probe(rank, 0, MPI_COMM_WORLD, &status);
-    MPI_Get_count(&status, MPI_CHAR, &result_len);
+    MPI_Get_count(&status, MPI_INT, &result_len);
 
+
+    vector<int> result;
     result.resize(result_len);
 
-    MPI_Recv(&result[0], result_len, MPI_CHAR, rank, 0,
+    MPI_Recv(&result[0], result_len, MPI_INT, rank, 0,
              MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    cout << "rank " << rank << " >> " << result << endl;
+    if (result_len == 1) {
+        // check if the result length is 1, print as single int value
+        if (result[0] > -1) {
+            // if result value is -1 or lower, it means error so don't print
+            // anything since the error is already printed by the other rank
+            cout << "rank " << rank << " >> " << result[0] << endl;
+        }
+    } else {
+        stringstream res_stream;
+
+        // format as an array e.g.: { 1, 2, ... }
+        string sep = "{ ";
+        for (const auto &r: result) {
+            res_stream << sep << r;
+            sep = ", ";
+        }
+
+        res_stream << " }";
+
+        // print the formatted array as output
+        cout << "rank " << rank << " >> " << res_stream.str() << endl;
+    }
 }
 
 // validates commands then executes them
@@ -182,9 +204,10 @@ void mpi_loop(int rank) {
                  MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         // run the command send the result back
-        auto result = executor->execute_command(command);
+        int count;
+        auto result = executor->execute_command(command, count);
 
-        MPI_Send(result.c_str(), result.length(), MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+        MPI_Send(result, count, MPI_INT, 0, 0, MPI_COMM_WORLD);
     } while (command.substr(0, 4) != "exit");
 }
 
