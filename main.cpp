@@ -163,8 +163,10 @@ void execute_remote_command(int rank, const string &command) {
 
 // validates commands then executes them
 void validate_and_execute(const string &command, int N, int N1, int rank_count) {
-    int target_row = Executor::parse_command(command);
+    int row_end(-1);
+    int target_row = Executor::parse_command(command, row_end);
     int target_rank = (target_row / N1);
+    int target_rank_end = (row_end / N1);
 
     // operator is empty, ignore
     if (target_row == -1) {
@@ -186,14 +188,36 @@ void validate_and_execute(const string &command, int N, int N1, int rank_count) 
         return;
     }
 
-    if (target_rank >= rank_count || target_row >= N) {
-        cout << "error: invalid row input: " << target_row << " (inferred rank: " << target_rank
-             << " is invalid. valid row value range: [0, "
+    if (target_rank >= rank_count || target_row >= N || target_rank_end >= rank_count || row_end >= N) {
+        cout << "error: invalid row input: " << target_row;
+
+        if (target_rank_end >= 0) {
+            cout << "-" << row_end;
+        }
+
+        cout << " (inferred rank: " << target_rank;
+
+        if (target_rank_end >= 0) {
+            cout << "-" << target_rank_end;
+        }
+
+        cout << " is invalid. valid row value range: [0, "
              << N - 1 << "])" << endl;
         return;
     }
 
-    execute_remote_command(target_rank, command);
+    if (target_rank_end > target_rank) {
+        for (int i = target_rank; i <= target_rank_end; i++) {
+            execute_remote_command(i, command);
+        }
+    } else {
+        if (row_end < 0 || target_rank_end == target_rank) {
+            execute_remote_command(target_rank, command);
+        } else {
+            cout << "error: invalid row input: end row (" << row_end << ") cannot be lower than start row ("
+                 << target_row << ")." << endl;
+        }
+    }
 }
 
 // the basic mpi loop for receiving and executing commands then sending back results

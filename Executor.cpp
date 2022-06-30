@@ -34,12 +34,13 @@ int *Executor::execute_command(string command, int &count) {
     stringstream res_str;
     istringstream string_stream(command);
 
-    string op, sub_op, row_str;
+    string op, sub_op, row_str, row_end_str;
 
     // split the command into op, sub op and row index strings
     getline(string_stream, op, ' ');
     getline(string_stream, sub_op, ' ');
-    getline(string_stream, row_str, ' ');
+    getline(string_stream, row_str, '-');
+    getline(string_stream, row_end_str);
 
     // try to find operator in special operator map keys
     auto sp_op_element = Executor::special_op_map.find(op);
@@ -79,11 +80,28 @@ int *Executor::execute_command(string command, int &count) {
 
     // try to parse the row value into integer
     stringstream row_stream(row_str);
-    int row(0);
+    int row(-1);
     row_stream >> row;
 
     if (row_stream.fail()) {
-        res_str << "error: failed to parse row index.";
+        if (row_str.substr(0, 3) != "all") {
+            res_str << "error: failed to parse row index.";
+            cout << "rank " << this->rank << " >> " << res_str.str() << endl;
+
+            const_result = vector<int>{-1};
+
+            count = const_result.size();
+            return const_result.data();
+        }
+    }
+
+    // try to parse the row end value into integer
+    stringstream row_end_stream(row_end_str);
+    int row_end(-1);
+    row_end_stream >> row_end;
+
+    if (row_end_stream.fail() && row_end_str.length() != 0) {
+        res_str << "error: failed to parse row end index.";
         cout << "rank " << this->rank << " >> " << res_str.str() << endl;
 
         const_result = vector<int>{-1};
@@ -92,25 +110,50 @@ int *Executor::execute_command(string command, int &count) {
         return const_result.data();
     }
 
+    int local_row = row_str.substr(0, 3) == "all" ? 0 : max(this->get_local_row(row), 0);
+    int local_row_end = min(this->get_local_row(row_end), this->N1 - 1);
+
+    if (local_row < 0 || (local_row_end < 0 && !row_end_stream.fail())) {
+        res_str << "error: invalid row value (out of range).";
+        cout << "rank " << this->rank << " >> " << res_str.str() << endl;
+
+        const_result = vector<int>{-1};
+
+        count = const_result.size();
+        return const_result.data();
+    }
+
+    // todo call the whole range
+
     // call the op_func to execute the command
-    return op_func(this, row, count);
+    return op_func(this, local_row, local_row_end, count);
 }
 
 // parses the command and returns the target row (or -1/-2 based on the command)
-int Executor::parse_command(const string &command) {
+int Executor::parse_command(const string &command, int &row_end) {
     istringstream string_stream(command);
 
-    string op, sub_op, row_str;
+    string op, sub_op, row_str, row_end_str;
 
     // split the command into op, sub op and row index strings
     getline(string_stream, op, ' ');
     getline(string_stream, sub_op, ' ');
-    getline(string_stream, row_str, ' ');
+    getline(string_stream, row_str, '-');
+    getline(string_stream, row_end_str, '-');
 
     // try to parse the row value into integer
     stringstream row_stream(row_str);
     int row(-3);
     row_stream >> row;
+
+    // try to parse the row end value into integer
+    stringstream row_end_stream(row_end_str);
+    row_end_stream >> row_end;
+
+    if (row_end_stream.fail()) {
+        // set end row to -1 if it fails (to prevent it from being 0)
+        row_end = -1;
+    }
 
     if (row_stream.fail()) {
         // if the operator is empty, ignore
@@ -119,8 +162,10 @@ int Executor::parse_command(const string &command) {
         }
 
         // operator is available in special operator map
+        // or the row value is `all`
         // it should be sent to all ranks
-        if (Executor::special_op_map.find(op) != Executor::special_op_map.end()) {
+        if (Executor::special_op_map.find(op) != Executor::special_op_map.end() ||
+            row_str.substr(0, 3) == "all") {
             return -2;
         }
 
@@ -131,44 +176,21 @@ int Executor::parse_command(const string &command) {
     return row;
 }
 
-int *Executor::get_row(Executor *executor, int row, int &count) {
+int *Executor::get_row(Executor *executor, int row, int row_end, int &count) {
     stringstream res_str;
 
-    int local_row = executor->get_local_row(row);
-    if (local_row < 0) {
-        res_str << "error: invalid row value (out of range).";
-        cout << "rank " << executor->rank << " >> " << res_str.str() << endl;
-
-        const_result = vector<int>{-1};
-
-        count = const_result.size();
-        return const_result.data();
-    }
-
-    count = executor->array_part[local_row].size();
-    return executor->array_part[local_row].data();
+    count = executor->array_part[row].size();
+    return executor->array_part[row].data();
 }
 
-int *Executor::get_aggr(Executor *executor, int row, int &count) {
+int *Executor::get_aggr(Executor *executor, int row, int row_end, int &count) {
     stringstream res_str;
 
-    int local_row = executor->get_local_row(row);
-    if (local_row < 0) {
-        res_str << "error: invalid row value (out of range).";
-        cout << "rank " << executor->rank << " >> " << res_str.str() << endl;
-
-        const_result = vector<int>{-1};
-
-        count = const_result.size();
-        return const_result.data();
-    }
-
     int aggr = 0;
-    for (const auto &r: executor->array_part[local_row]) {
+    for (const auto &r: executor->array_part[row]) {
         aggr += r;
     }
 
-//    res_str << "aggr " << row << " (" << executor->rank << ":" << local_row << "): " << aggr;
     const_result = vector<int>{aggr};
 
     count = const_result.size();

@@ -15,7 +15,7 @@ class Executor {
 private:
     // holds the operators, functions and sub operators
     map<string, map<string,
-            int *(*)(Executor *, int, int &)>> op_map{{
+            int *(*)(Executor *, int, int, int &)>> op_map{{
                                                               "get", {{"row", get_row},
                                                                       {"aggr", get_aggr}}
                                                       }};
@@ -34,13 +34,13 @@ public:
     int N1;
     int rank_count;
 
-    static int *get_row(Executor *executor, int row, int &count);
+    static int *get_row(Executor *executor, int row, int row_end, int &count);
 
-    static int *get_aggr(Executor *executor, int row, int &count);
+    static int *get_aggr(Executor *executor, int row, int row_end, int &count);
 
     int *execute_command(string command, int &count);
 
-    static int parse_command(const string &command);
+    static int parse_command(const string &command, int& row_end);
 
     int get_local_row(int row) const;
 
