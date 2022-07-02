@@ -80,6 +80,8 @@ int main(int argc, char **argv) {
     // start the mpi loop asynchronously for all ranks including 0
     auto task = async(mpi_loop);
 
+    cout << "rank " << current_rank << " pid: " << getpid() << endl;
+
     // only allow running commands if rank is 0
     if (current_rank == 0) {
         if (argc < 4) {
@@ -163,7 +165,9 @@ void execute_remote_command(int rank, const string &command) {
 
 // validates commands then executes them
 void validate_and_execute(const string &command, int N, int N1, int rank_count) {
-    int target_row = Executor::parse_command(command);
+    map<int, pair<int, int>> sub_command_map;
+
+    int target_row = executor->parse_command(command, sub_command_map);
     int target_rank = (target_row / N1);
 
     // operator is empty, ignore
