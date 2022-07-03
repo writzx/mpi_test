@@ -154,6 +154,11 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
     prefix_stream << op << " " << sub_op << " ";
     command_prefix = prefix_stream.str();
 
+    if (row_str.substr(0, 3) == "all") {
+        row_str = "0";
+        row_end_str = to_string(this->N);
+    }
+
     // try to parse the row value into integer
     stringstream row_stream(row_str);
     int row(-3);
@@ -163,12 +168,6 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
     stringstream row_end_stream(row_end_str);
     int row_end(-3);
     row_end_stream >> row_end;
-
-    // todo implement "all"
-
-//    if (row_str.substr(0, 3) == "all") {
-//        return -2;
-//    }
     sub_command_map.clear();
 
     if (row_stream.fail()) {
