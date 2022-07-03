@@ -59,8 +59,6 @@ public:
     P_RESULT parse_command(const string &command, map<int, pair<int, int>> &sub_command_map,
                            string &command_prefix) const;
 
-//    int get_local_row(int row) const;
-
     Executor(int current_rank, int rowN, int colM, int partRowN, int rankCount) :
             rank(current_rank),
             rank_count(rankCount),
@@ -70,7 +68,6 @@ public:
             // allocate array N1 x M;
             array_part(partRowN, vector<int>(colM, current_rank)) {
     }
-
 };
 
 #endif //MPI_TEST_EXECUTOR_H

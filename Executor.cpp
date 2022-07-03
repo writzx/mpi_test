@@ -13,18 +13,6 @@ using namespace std;
 // static variable to store return values that are not directly allocated into the array
 static vector<int> const_result;
 
-// find the local row index in array_part from global row index
-//int Executor::get_local_row(int row) const {
-//    int global_N1 = ceil((float) this->N / this->rank_count);
-//    int local_row = row - this->rank * global_N1;
-//
-//    if (local_row < 0 || local_row >= this->N1) {
-//        return -1;
-//    }
-//
-//    return local_row;
-//}
-
 // executes the command in local context and sends back the result
 int *Executor::execute_command(string command, int &count) {
     // convert command to lowercase first
@@ -240,38 +228,18 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
 int *Executor::get_row(Executor *executor, int row, int &count) {
     stringstream res_str;
 
-    int local_row = row;
-    if (local_row < 0) {
-        res_str << "error: invalid row value (out of range).";
-        cout << "rank " << executor->rank << " >> " << res_str.str() << endl;
-
-        const_result = vector<int>{-1};
-
-        count = const_result.size();
-        return const_result.data();
-    }
-
-    count = executor->array_part[local_row].size();
-    return executor->array_part[local_row].data();
+    count = executor->array_part[row].size();
+    return executor->array_part[row].data();
 }
 
 int *Executor::get_aggr_range(Executor *executor, int row_start, int row_end, int &count) {
     stringstream res_str;
 
-    int local_row_start = row_start;
-    if (local_row_start < 0) {
-        res_str << "error: invalid row value (out of range).";
-        cout << "rank " << executor->rank << " >> " << res_str.str() << endl;
-
-        const_result = vector<int>{-1};
-
-        count = const_result.size();
-        return const_result.data();
-    }
-
     int aggr = 0;
-    for (const auto &r: executor->array_part[local_row_start]) {
-        aggr += r;
+    for (int row = row_start; row < row_end; ++row) {
+        for (const auto &r: executor->array_part[row]) {
+            aggr += r;
+        }
     }
 
     const_result = vector<int>{aggr};
@@ -284,19 +252,8 @@ int *Executor::get_aggr_range(Executor *executor, int row_start, int row_end, in
 int *Executor::get_aggr(Executor *executor, int row, int &count) {
     stringstream res_str;
 
-    int local_row = row;
-    if (local_row < 0) {
-        res_str << "error: invalid row value (out of range).";
-        cout << "rank " << executor->rank << " >> " << res_str.str() << endl;
-
-        const_result = vector<int>{-1};
-
-        count = const_result.size();
-        return const_result.data();
-    }
-
     int aggr = 0;
-    for (const auto &r: executor->array_part[local_row]) {
+    for (const auto &r: executor->array_part[row]) {
         aggr += r;
     }
 

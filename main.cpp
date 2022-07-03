@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
 }
 
 // executes remote commands and prints their results
-void execute_remote_command(int rank, const string &command) {
+vector<int> execute_remote_command(int rank, const string &command) {
     // send the command to the target rank
     cout << "rank " << rank << " << " << command << endl;
     MPI_Send(command.c_str(), command.length(), MPI_CHAR, rank, 0, MPI_COMM_WORLD);
@@ -139,28 +139,34 @@ void execute_remote_command(int rank, const string &command) {
     MPI_Recv(&result[0], result_len, MPI_INT, rank, 0,
              MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    if (result_len == 1) {
-        // check if the result length is 1, print as single int value
-        if (result[0] > -1) {
-            // if result value is -1 or lower, it means error so don't print
-            // anything since the error is already printed by the other rank
-            cout << "rank " << rank << " >> " << result[0] << endl;
-        }
-    } else {
-        stringstream res_stream;
+    return result;
+}
 
-        // format as an array e.g.: { 1, 2, ... }
-        string sep = "{ ";
-        for (const auto &r: result) {
-            res_stream << sep << r;
-            sep = ", ";
-        }
-
-        res_stream << " }";
-
-        // print the formatted array as output
-        cout << "rank " << rank << " >> " << res_stream.str() << endl;
+string generate_sub_command(pair<int, int> sub_comm_element, string command_prefix) {
+    stringstream sub_command_stream;
+    const int row_start = sub_comm_element.first;
+    const int row_end = sub_comm_element.second;
+    sub_command_stream << command_prefix << row_start;
+    if (row_end > row_start) {
+        sub_command_stream << "-" << row_end;
     }
+
+    return sub_command_stream.str();
+}
+
+string format_array(const vector<int> &array) {
+    stringstream res_stream;
+
+    // format as an array e.g.: { 1, 2, ... }
+    string sep = "{ ";
+    for (const auto &r: array) {
+        res_stream << sep << r;
+        sep = ", ";
+    }
+
+    res_stream << " }";
+
+    return res_stream.str();
 }
 
 // validates commands then executes them
@@ -217,15 +223,58 @@ void validate_and_execute(const string &command, int N, int N1, int rank_count) 
         return;
     }
 
-    // todo aggregate the results
-    for (const auto &sub_comm: sub_command_map) {
-        stringstream sub_command_stream;
-        sub_command_stream << command_prefix << sub_comm.second.first;
-        if (sub_comm.second.second > sub_comm.second.first) {
-            sub_command_stream << "-" << sub_comm.second.second;
+    if (sub_command_map.size() == 1) {
+        const auto sub_comm = sub_command_map.begin();
+        const int rank = sub_comm->first;
+        auto result = execute_remote_command(rank, generate_sub_command(
+                sub_comm->second, command_prefix));
+        if (result.size() == 1) {
+            // check if the result length is 1, print as single int value
+            if (result[0] > -1) {
+                // if result value is -1 or lower, it means error so don't print
+                // anything since the error is already printed by the other rank
+                cout << "rank " << rank << " >> " << result[0] << endl;
+            }
+        } else {
+            // print the formatted array as output
+            cout << "rank " << rank << " >> " << format_array(result) << endl;
         }
+        return;
+    }
+    vector<future<vector<int>>> future_results;
 
-        execute_remote_command(sub_comm.first, sub_command_stream.str());
+    for (auto &sub_comm: sub_command_map) {
+        const int rank = sub_comm.first;
+
+        future_results.push_back(async(execute_remote_command, rank, generate_sub_command(
+                sub_comm.second, command_prefix)));
+    }
+
+    vector<vector<int>> accumulator;
+
+    for (auto &future_result: future_results) {
+        auto res = future_result.get();
+
+        accumulator.push_back(res);
+    }
+
+    if (accumulator[0].size() == 1) {
+        // only one value is returned per rank
+        // so aggregate them and print
+        int aggr = 0;
+        for (auto const &v: accumulator) {
+            if (v[0] > 0) {
+                aggr += v[0];
+            }
+        }
+        cout << "aggregate result: " << aggr << endl;
+    } else {
+        string prefix = "range result: ";
+        for (const auto &row: accumulator) {
+            // print the formatted array as output
+            cout << prefix << format_array(row) << endl;
+            prefix = "              ";
+        }
     }
 }
 
