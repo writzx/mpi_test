@@ -177,7 +177,6 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
     row_end_stream >> row_end;
 
     // todo implement "all"
-    // todo implement sending correct row values to processes
 
 //    if (row_str.substr(0, 3) == "all") {
 //        return -2;
