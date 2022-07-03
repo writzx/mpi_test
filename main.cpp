@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
     // start the mpi loop asynchronously for all ranks including 0
     auto task = async(mpi_loop);
 
-    cout << "rank " << current_rank << " pid: " << getpid() << endl;
+    // cout << "rank " << current_rank << " pid: " << getpid() << endl;
 
     // only allow running commands if rank is 0
     if (current_rank == 0) {
