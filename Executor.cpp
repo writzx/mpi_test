@@ -113,7 +113,7 @@ int *Executor::execute_command(string command, int &count) {
         auto range_sub_op_element = range_sub_op_map.find(sub_op);
         if (range_sub_op_element == range_sub_op_map.end()) {
             // sub-operator is not valid for operator
-            res_str << "error: sub operator \"" << sub_op << "\" is invalid for operator \"" << op << "\".";
+            res_str << "error: sub operator \"" << sub_op << "\" is invalid for range operator \"" << op << "\".";
             cout << "rank " << this->rank << " >> " << res_str.str() << endl;
 
             const_result = vector<int>{-1};
@@ -148,9 +148,12 @@ int *Executor::execute_command(string command, int &count) {
     }
 }
 
-// parses the command and returns the target row (or -1/-2 based on the command)
-int Executor::parse_command(const string &command, map<int, pair<int, int>> &sub_command_map) const {
+// parses the command and returns the parsing result
+// returns a list of sub commands to send to other ranks in sub_command_map
+P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>> &sub_command_map,
+                                 string &command_prefix) const {
     istringstream string_stream(command);
+    stringstream prefix_stream;
 
     string op, sub_op, row_str, row_end_str;
 
@@ -159,6 +162,9 @@ int Executor::parse_command(const string &command, map<int, pair<int, int>> &sub
     getline(string_stream, sub_op, ' ');
     getline(string_stream, row_str, '-');
     getline(string_stream, row_end_str, ' ');
+
+    prefix_stream << op << " " << sub_op << " ";
+    command_prefix = prefix_stream.str();
 
     // try to parse the row value into integer
     stringstream row_stream(row_str);
@@ -176,33 +182,60 @@ int Executor::parse_command(const string &command, map<int, pair<int, int>> &sub
 //    if (row_str.substr(0, 3) == "all") {
 //        return -2;
 //    }
-
     sub_command_map.clear();
-
-    for (int rnk = row / this->N1;
-         row_end % this->N1 == 0 ? rnk < row_end / this->N1 : rnk <= row_end / this->N1; rnk++) {
-        int rnk_row_start = max(0, row - rnk * this->N1), rnk_row_end = min(row_end - rnk * this->N1, this->N1);
-
-        sub_command_map.insert({rnk, {rnk_row_start, rnk_row_end - 1}});
-    }
 
     if (row_stream.fail()) {
         // if the operator is empty, ignore
         if (op.empty()) {
-            return -1;
+            return EMPTY_OP;
         }
 
         // operator is available in special operator map
         // it should be sent to all ranks
         if (Executor::special_op_map.find(op) != Executor::special_op_map.end()) {
-            return -2;
+            return SPECIAL_OPERATOR;
         }
 
         // otherwise just show error message
-        return -3;
+        return ERROR_OPERATOR;
     }
 
-    return row;
+    if (row > this->N || row < 0) {
+        // row out of range
+        sub_command_map.insert({0, {row / this->N1, row}});
+    }
+
+    if (row_end_str.length() > 0) {
+        // it is a range command
+        if (row_end_stream.fail()) {
+            // failed to parse row end
+            return ERROR_OPERATOR;
+        }
+
+        if (row_end > this->N || row_end < 0) {
+            // end row out of range
+            sub_command_map.insert({-1, {row / this->N1, row}});
+            sub_command_map.insert({-2, {row_end / this->N1, row_end}});
+        }
+    }
+
+    if (!sub_command_map.empty()) {
+        return ROW_OUT_OF_RANGE;
+    }
+
+    if (row > row_end) {
+        sub_command_map.insert({-1, {row, row_end}});
+        return NEGATIVE_ROW_RANGE;
+    }
+
+    for (int rnk = row / this->N1;
+         row_end % this->N1 == 0 ? rnk < row_end / this->N1 : rnk <= row_end / this->N1; rnk++) {
+        int rnk_row_start = max(0, row - rnk * this->N1), rnk_row_end = min(row_end - rnk * this->N1, this->N1);
+
+        sub_command_map.insert({rnk, {rnk_row_start, rnk_row_end}});
+    }
+
+    return SUCCESS;
 }
 
 int *Executor::get_row(Executor *executor, int row, int &count) {

@@ -11,6 +11,16 @@
 
 using namespace std;
 
+// enum for the results of the parse function
+enum P_RESULT : int {
+    SUCCESS = 0,
+    EMPTY_OP = -1,
+    SPECIAL_OPERATOR = -2,
+    ERROR_OPERATOR = -3,
+    ROW_OUT_OF_RANGE = -4,
+    NEGATIVE_ROW_RANGE = -5
+};
+
 class Executor {
 private:
     // holds the operators, functions and sub operators
@@ -46,7 +56,8 @@ public:
 
     int *execute_command(string command, int &count);
 
-    int parse_command(const string &command, map<int, pair<int, int>> &sub_command_map) const;
+    P_RESULT parse_command(const string &command, map<int, pair<int, int>> &sub_command_map,
+                           string &command_prefix) const;
 
 //    int get_local_row(int row) const;
 

@@ -166,18 +166,18 @@ void execute_remote_command(int rank, const string &command) {
 // validates commands then executes them
 void validate_and_execute(const string &command, int N, int N1, int rank_count) {
     map<int, pair<int, int>> sub_command_map;
+    string command_prefix;
 
-    int target_row = executor->parse_command(command, sub_command_map);
-    int target_rank = (target_row / N1);
+    P_RESULT parse_result = executor->parse_command(command, sub_command_map, command_prefix);
 
     // operator is empty, ignore
-    if (target_row == -1) {
+    if (parse_result == EMPTY_OP) {
         return;
     }
 
     // special operator
     // it should be sent to all ranks
-    if (target_row == -2) {
+    if (parse_result == SPECIAL_OPERATOR) {
         for (int i = 0; i < rank_count; ++i) {
             execute_remote_command(i, command);
         }
@@ -185,19 +185,48 @@ void validate_and_execute(const string &command, int N, int N1, int rank_count) 
     }
 
     // otherwise just show error message
-    if (target_row == -3) {
+    if (parse_result == ERROR_OPERATOR) {
         cout << "error: invalid command or arguments." << endl;
         return;
     }
 
-    if (target_rank >= rank_count || target_row >= N) {
-        cout << "error: invalid row input: " << target_row << " (inferred rank: " << target_rank
-             << " is invalid. valid row value range: [0, "
+    if (parse_result == ROW_OUT_OF_RANGE) {
+        // row is out of range
+        // get the rank values from the special map element
+        auto sp_map_row_ele = sub_command_map.find(-1);
+        auto sp_map_row_end_ele = sub_command_map.find(-2);
+        cout << "error: invalid row input: " << sp_map_row_ele->second.second;
+        if (sp_map_row_end_ele != sub_command_map.end()) {
+            cout << "-" << sp_map_row_end_ele->second.second;
+        }
+        cout << " (inferred rank: " << sp_map_row_ele->second.first;
+        if (sp_map_row_end_ele != sub_command_map.end()) {
+            cout << "-" << sp_map_row_end_ele->second.first;
+        }
+        cout << " is invalid. valid row value range: [0, "
              << N - 1 << "])" << endl;
         return;
     }
 
-    execute_remote_command(target_rank, command);
+    if (parse_result == NEGATIVE_ROW_RANGE) {
+        // end row is greater than start row
+        // get the rank values from the special map element
+        auto sp_map_row_ele = sub_command_map.find(-1);
+        cout << "error: invalid row range input. end row(" << sp_map_row_ele->second.second
+             << ") cannot be greater than start row(" << sp_map_row_ele->second.first << ")." << endl;
+        return;
+    }
+
+    // todo aggregate the results
+    for (const auto &sub_comm: sub_command_map) {
+        stringstream sub_command_stream;
+        sub_command_stream << command_prefix << sub_comm.second.first;
+        if (sub_comm.second.second > sub_comm.second.first) {
+            sub_command_stream << "-" << sub_comm.second.second;
+        }
+
+        execute_remote_command(sub_comm.first, sub_command_stream.str());
+    }
 }
 
 // the basic mpi loop for receiving and executing commands then sending back results
