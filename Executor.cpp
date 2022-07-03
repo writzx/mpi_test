@@ -168,7 +168,6 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
     stringstream row_end_stream(row_end_str);
     int row_end(-3);
     row_end_stream >> row_end;
-    sub_command_map.clear();
 
     if (row_stream.fail()) {
         // if the operator is empty, ignore
@@ -188,7 +187,8 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
 
     if (row > this->N || row < 0) {
         // row out of range
-        sub_command_map.insert({0, {row / this->N1, row}});
+        sub_command_map.clear();
+        sub_command_map.insert({-1, {row / this->N1, row}});
     }
 
     if (row_end_str.length() > 0) {
@@ -200,6 +200,7 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
 
         if (row_end > this->N || row_end < 0) {
             // end row out of range
+            sub_command_map.clear();
             sub_command_map.insert({-1, {row / this->N1, row}});
             sub_command_map.insert({-2, {row_end / this->N1, row_end}});
         }
@@ -209,16 +210,28 @@ P_RESULT Executor::parse_command(const string &command, map<int, pair<int, int>>
         return ROW_OUT_OF_RANGE;
     }
 
-    if (row > row_end) {
-        sub_command_map.insert({-1, {row, row_end}});
-        return NEGATIVE_ROW_RANGE;
-    }
 
-    for (int rnk = row / this->N1;
-         row_end % this->N1 == 0 ? rnk < row_end / this->N1 : rnk <= row_end / this->N1; rnk++) {
-        int rnk_row_start = max(0, row - rnk * this->N1), rnk_row_end = min(row_end - rnk * this->N1, this->N1);
+    if (row_end_str.length() > 0) {
+        if (row > row_end) {
+            // end_row is non-empty so the range is wrong
+            sub_command_map.clear();
+            sub_command_map.insert({-1, {row, row_end}});
+            return NEGATIVE_ROW_RANGE;
+        }
 
-        sub_command_map.insert({rnk, {rnk_row_start, rnk_row_end}});
+        sub_command_map.clear();
+
+        for (int rnk = row / this->N1;
+             row_end % this->N1 == 0 ? rnk < row_end / this->N1 : rnk <= row_end / this->N1; rnk++) {
+            int rnk_row_start = max(0, row - rnk * this->N1), rnk_row_end = min(row_end - rnk * this->N1, this->N1);
+
+            sub_command_map.insert({rnk, {rnk_row_start, rnk_row_end}});
+        }
+    } else {
+        int rnk = row / this->N1;
+        int rnk_row = max(0, row - rnk * this->N1);
+
+        sub_command_map.insert({rnk, {rnk_row, -1}});
     }
 
     return SUCCESS;

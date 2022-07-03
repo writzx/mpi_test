@@ -142,7 +142,7 @@ vector<int> execute_remote_command(int rank, const string &command) {
     return result;
 }
 
-string generate_sub_command(pair<int, int> sub_comm_element, string command_prefix) {
+string generate_sub_command(pair<int, int> sub_comm_element, const string& command_prefix) {
     stringstream sub_command_stream;
     const int row_start = sub_comm_element.first;
     const int row_end = sub_comm_element.second;
